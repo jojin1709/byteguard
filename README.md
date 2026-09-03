@@ -1,7 +1,8 @@
 # Sentinel Java Agent
 
 > [!NOTE]
-> **[ByteGuard / Sentinel 1.0.0 is live](https://github.com/jojin1709/byteguard):** Production-grade Java 17 instrumentation engine, dynamic bytecode rewriting powered by OW2 ASM 9.7.1, 4 transformation modes (REPLACE, TRACE, COUNT, NULL_CHECK), automatic stack-map frame computation, dynamic JVM attach, and interactive web documentation.
+> **[ByteGuard / Sentinel 1.0.0 is live](https://github.com/jojin1709/byteguard):** Production-grade Java 17 instrumentation engine, dynamic bytecode rewriting powered by OW2 ASM 9.7.1, 4 transformation modes (REPLACE, TRACE, COUNT, NULL_CHECK), automatic stack-map frame computation, dynamic JVM attach, and interactive web documentation.  
+> 🌐 **Live Interactive Website & Playground:** **[https://jojin1709.github.io/byteguard/](https://jojin1709.github.io/byteguard/)**
 
 <div align="center">
 
@@ -17,6 +18,7 @@
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](./LICENSE)
 [![CI](https://github.com/jojin1709/byteguard/actions/workflows/maven.yml/badge.svg)](https://github.com/jojin1709/byteguard/actions/workflows/maven.yml)
 [![Release](https://img.shields.io/github/v/release/jojin1709/byteguard?style=for-the-badge&color=brightgreen&label=Release)](https://github.com/jojin1709/byteguard/releases/latest)
+[![Website](https://img.shields.io/badge/Live_Demo-jojin1709.github.io%2Fbyteguard-00f2fe?style=for-the-badge&logo=googlechrome&logoColor=white)](https://jojin1709.github.io/byteguard/)
 
 <br/>
 
