@@ -1,7 +1,7 @@
 # Sentinel Java Agent
 
 > [!NOTE]
-> **[Sentinel 1.0.0 is live](https://github.com/sentinel/burp-agent):** Production-grade Java 17 instrumentation engine, dynamic bytecode rewriting powered by OW2 ASM 9.7.1, automatic stack-map frame computation, idempotent retransformation hooks, and zero-dependency runtime isolation.
+> **[ByteGuard / Sentinel 1.0.0 is live](https://github.com/jojin1709/byteguard):** Production-grade Java 17 instrumentation engine, dynamic bytecode rewriting powered by OW2 ASM 9.7.1, 4 transformation modes (REPLACE, TRACE, COUNT, NULL_CHECK), automatic stack-map frame computation, dynamic JVM attach, and interactive web documentation.
 
 <div align="center">
 
@@ -244,41 +244,160 @@ flowchart TD
 ## Project Structure & Files
 
 ```text
-burp-agent/
-├── pom.xml                                   # Build configuration, plugins, dependencies
-├── README.md                                 # Project documentation and operational guide
+byteguard/
+├── pom.xml                                   # Build configuration, shaded fat JAR, ASM 9.7.1
+├── README.md                                 # Main repository manual and operational guide
+├── LICENSE                                   # Proprietary Research License (JOJIN JOHN)
+├── CONTRIBUTING.md                           # Contributor guidelines and workflow
+├── CHANGELOG.md                              # Historical release tracking
+├── CODE_OF_CONDUCT.md                        # Contributor Covenant v2.1
+├── .github/
+│   ├── workflows/maven.yml                   # Automated CI build, test & artifact upload
+│   ├── dependabot.yml                        # Automated weekly dependency updates
+│   ├── SECURITY.md                           # Vulnerability reporting protocol
+│   ├── PULL_REQUEST_TEMPLATE.md              # PR checklist & submission form
+│   └── ISSUE_TEMPLATE/                       # Bug report & feature request templates
+├── docs/                                     # Complete Interactive Animated Website & Docs
+│   ├── index.html                            # Interactive live simulator & documentation portal
+│   ├── style.css                             # Cyberpunk dark mode, glassmorphism, responsive grid
+│   ├── script.js                             # Live bytecode playground engine & floating particle canvas
+│   ├── usage.md                              # Comprehensive CLI & agent argument manual
+│   └── architecture.md                       # Deep-dive ASM transformation internals
+├── scripts/
+│   ├── run-with-agent.bat                    # Windows batch launcher (REPLACE, TRACE, COUNT, NULL_CHECK)
+│   └── run-with-agent.sh                     # Linux / macOS shell launcher
 └── src/
     ├── main/
     │   ├── java/
     │   │   ├── demo/
     │   │   │   ├── app/
-    │   │   │   │   └── DemoApplication.java  # Demo entry point executing TargetService
+    │   │   │   │   └── DemoApplication.java  # Demo console runner testing all modes
     │   │   │   └── target/
-    │   │   │       └── TargetService.java    # Demo target class containing message() and add()
+    │   │   │       └── TargetService.java    # Target class containing message() and add()
     │   │   └── sentinel/
-    │   │       ├── Filter.java               # Safe string normalization and utility methods
-    │   │       └── Loader.java               # Premain agent entrypoint & ClassFileTransformer
+    │   │       ├── AgentConfig.java          # CLI argument & .properties file configuration parser
+    │   │       ├── AgentLogger.java          # Dual-channel console and timestamped file logger
+    │   │       ├── AgentStats.java           # Thread-safe telemetry and JVM shutdown statistics
+    │   │       ├── AttachTool.java           # Dynamic attach CLI tool for running JVMs
+    │   │       ├── Filter.java               # Safe string normalization and validation utilities
+    │   │       ├── Loader.java               # Agent entry point (premain + agentmain) & ASM transformer
+    │   │       ├── PatternMatcher.java       # Glob wildcard engine (* and **) for class targeting
+    │   │       └── TransformMode.java        # Enum for REPLACE, TRACE, COUNT, and NULL_CHECK
     │   └── resources/
     │       └── META-INF/
-    │           └── MANIFEST.MF               # Agent manifest (Premain-Class, Retransform flags)
+    │           └── MANIFEST.MF               # Manifest declaring Premain-Class, Agent-Class, and flags
     └── test/
         └── java/
             ├── demo/
             │   └── target/
-            │       └── TargetServiceTest.java # TargetService uninstrumented unit tests
+            │       └── TargetServiceTest.java # Uninstrumented baseline target tests
             └── sentinel/
-                ├── FilterTest.java           # Filter utility unit tests
-                └── LoaderTest.java           # Agent transformation, null-safety, and idempotency tests
+                ├── FilterTest.java           # String normalization & validation unit tests
+                └── LoaderTest.java           # 19 comprehensive agent transformation & mode tests
 ```
 
-| File | Purpose |
+| Component | Responsibility |
 | :--- | :--- |
-| **`Loader.java`** | Core agent class implementing `ClassFileTransformer` and `premain()`. Contains the ASM bytecode transformation logic. |
-| **`Filter.java`** | Safe utility class for string trimming and JVM class name validation. |
-| **`TargetService.java`** | Test service containing `message()` (target for transformation) and `add()` (control method). |
-| **`DemoApplication.java`** | Console application that invokes `TargetService` and prints the output. |
-| **`MANIFEST.MF`** | Agent manifest declaring `Premain-Class: sentinel.Loader` and `Can-Retransform-Classes: true`. |
-| **`pom.xml`** | Maven project configuration packaging a self-contained shaded agent JAR with ASM 9.7.1 and JUnit 5. |
+| **`sentinel.Loader`** | Main `ClassFileTransformer` hook handling class interception, mode dispatch, and frame recomputation. |
+| **`sentinel.AgentConfig`** | Parses `key=value` agent options, semicolon-separated targets, and `.properties` config files. |
+| **`sentinel.PatternMatcher`** | Fast glob wildcard compiler matching single-segment (`*`) and cross-package (`**`) patterns. |
+| **`sentinel.AgentLogger`** | Thread-safe logger outputting formatted logs to stdout and designated log files simultaneously. |
+| **`sentinel.AgentStats`** | Global atomic metrics tracking classes scanned, transformed, errors, and invocation counts. |
+| **`sentinel.AttachTool`** | CLI utility to list local JVM processes and dynamically attach the agent to any PID without restarts. |
+| **`sentinel.TransformMode`** | Mode definitions: `REPLACE` (Tree API), `TRACE` (timing probes), `COUNT` (metrics), `NULL_CHECK` (guards). |
+| **`docs/` Web Portal** | Animated documentation website with an interactive bytecode injection playground. |
+
+---
+
+## ⚡ Transformation Modes & Engines
+
+Sentinel features four specialized bytecode transformation engines:
+
+### 1. REPLACE Mode (Default)
+Replaces target method bodies using ASM's **Tree API** (`ClassNode` & `InsnList`). Injects `LDC` with the replacement string followed by `ARETURN`.
+```bash
+java -javaagent:target/sentinel-agent.jar=mode=REPLACE -jar target/sentinel-agent.jar
+```
+
+### 2. TRACE Mode
+Injects high-precision `System.nanoTime()` probes before and after the method using ASM's `AdviceAdapter`. For reference return types, it duplicates the stack value (`DUP`) to print the exact return value along with elapsed milliseconds:
+```bash
+java -javaagent:target/sentinel-agent.jar=mode=TRACE -jar target/sentinel-agent.jar
+```
+*Output:*
+```text
+[Sentinel] ENTER message()
+[Sentinel] EXIT  message() — returned: Original message — took 1ms
+```
+
+### 3. COUNT Mode
+Injects thread-safe atomic telemetry (`AgentStats.recordInvocation()`) at method headers to report real-time call volume across all application threads:
+```bash
+java -javaagent:target/sentinel-agent.jar=mode=COUNT -jar target/sentinel-agent.jar
+```
+*Output:*
+```text
+[Sentinel] message() call #1
+[Sentinel] message() call #2
+[Sentinel] message() call #3
+```
+
+### 4. NULL_CHECK Mode
+Defensive in-flight auditing. Injects a `DUP` + `IFNONNULL` branch prior to reference returns to catch unexpected `null` returns and log diagnostic warnings directly to stderr without altering normal program flow:
+```bash
+java -javaagent:target/sentinel-agent.jar=mode=NULL_CHECK -jar target/sentinel-agent.jar
+```
+
+---
+
+## 🛠️ Advanced Configuration & Arguments
+
+Sentinel accepts comma-separated `key=value` parameters via `-javaagent`:
+
+```bash
+java -javaagent:target/sentinel-agent.jar=target=demo/target/*,method=message,mode=TRACE,verbose=true,logfile=sentinel.log -jar your-app.jar
+```
+
+### Configuration Options
+
+| Option | Format / Values | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `target` | Semicolon-separated patterns | Internal class names to instrument (supports `*` and `**`) | `demo/target/TargetService` |
+| `method` | Method identifier | Method name to hook and modify | `message` |
+| `mode` | `REPLACE`, `TRACE`, `COUNT`, `NULL_CHECK` | Selected transformation engine | `REPLACE` |
+| `verbose` | `true` \| `false` | Enables verbose console logging for every inspected class | `false` |
+| `logfile` | File path | Appends timestamped audit logs to a file | *(None)* |
+| `config` | Path to `.properties` file | Loads configuration properties from an external file | *(None)* |
+
+### Wildcard Targeting
+
+- `demo/target/*` — Instruments any class directly inside package `demo.target`.
+- `com/example/**` — Instruments all classes across `com.example` and all child packages recursively.
+- `target=pkg/A;pkg/B;pkg/C` — Multiple distinct class targets separated by semicolons.
+
+---
+
+## 🔌 Dynamic Attach (No JVM Restart)
+
+Sentinel includes `sentinel.AttachTool` to inject the agent into already-running production processes:
+
+```bash
+# 1. List running JVM processes and PIDs
+java --add-modules jdk.attach -jar target/sentinel-agent.jar --list
+
+# 2. Attach dynamically to a running PID
+java --add-modules jdk.attach -jar target/sentinel-agent.jar --attach 12345 mode=TRACE,verbose=true
+```
+
+---
+
+## 🌐 Interactive Animated Documentation
+
+Sentinel includes an animated web dashboard inside [`docs/`](./docs/index.html):
+- **Live Bytecode Playground:** Interactively switch between transformation modes and observe live decompiled bytecode diffs with opcode highlighting.
+- **Simulated JVM Terminal:** Step-by-step visual animation demonstrating bytecode injection, class interception, and frame recalculation.
+- **Architecture Flow:** Clickable interactive pipeline detailing classloading mechanics.
+- **Open locally:** Simply double-click [`docs/index.html`](./docs/index.html) in your file manager or browser.
 
 ---
 
