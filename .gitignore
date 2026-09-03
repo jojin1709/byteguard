@@ -3,7 +3,7 @@
 # ===========================
 
 # ---- Maven build output ----
-target/
+/target/
 dependency-reduced-pom.xml
 
 # ---- IntelliJ IDEA ----
