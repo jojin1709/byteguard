@@ -46,7 +46,7 @@ jobs:
           java -javaagent:target/sentinel-agent.jar -jar target/sentinel-agent.jar
 
       - name: Upload sentinel-agent.jar artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sentinel-agent-jar
           path: target/sentinel-agent.jar
