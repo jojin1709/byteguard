@@ -1,0 +1,46 @@
+# ===========================
+# Sentinel Java Agent — .gitignore
+# ===========================
+
+# ---- Maven build output ----
+target/
+dependency-reduced-pom.xml
+
+# ---- IntelliJ IDEA ----
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# ---- Eclipse ----
+.classpath
+.project
+.settings/
+bin/
+
+# ---- VS Code ----
+.vscode/
+
+# ---- Java ----
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+# ---- OS files ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs ----
+*.log
+hs_err_pid*
+
+# ---- Temp / Patch files ----
+*.orig
+*.rej
+*.bak
+*.swp
+*.tmp
