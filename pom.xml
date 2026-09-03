@@ -44,6 +44,13 @@
             <version>${asm.version}</version>
         </dependency>
 
+        <!-- OW2 ASM Commons (AdviceAdapter for TRACE/COUNT modes) -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-commons</artifactId>
+            <version>${asm.version}</version>
+        </dependency>
+
         <!-- JUnit 5 Testing Framework -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -103,6 +110,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Premain-Class>sentinel.Loader</Premain-Class>
+                                        <Agent-Class>sentinel.Loader</Agent-Class>
                                         <Can-Redefine-Classes>true</Can-Redefine-Classes>
                                         <Can-Retransform-Classes>true</Can-Retransform-Classes>
                                         <Main-Class>demo.app.DemoApplication</Main-Class>
