@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel Java Agent // ByteGuard — JVM Bytecode Instrumentation Engine</title>
+  <meta name="description" content="Autonomous Java 17 runtime bytecode instrumentation agent using OW2 ASM 9.7.1. In-memory modification, hot-patching, method tracing, call counting, and null guards. Built by JOJIN JOHN.">
+  
+  <!-- Modern Typography from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Floating Bytecode Particle Canvas -->
+  <canvas id="matrixCanvas"></canvas>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </span>
+      <span class="brand-title">BYTEGUARD</span>
+      <span class="brand-badge">v1.0.0</span>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#about" class="nav-link">Overview</a></li>
+      <li><a href="#simulator" class="nav-link">Live Playground</a></li>
+      <li><a href="#modes" class="nav-link">Engines</a></li>
+      <li><a href="#architecture" class="nav-link">Pipeline</a></li>
+      <li><a href="#comparison" class="nav-link">Comparison</a></li>
+    </ul>
+
+    <a href="https://github.com/jojin1709/byteguard" target="_blank" class="nav-cta">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+      GitHub
+    </a>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="status-badge">
+      <span class="status-dot"></span>
+      <span>Engine Armed // 24 Unit Tests Passing // Zero Dependencies</span>
+    </div>
+
+    <h1>
+      Autonomous JVM Runtime <br/>
+      <span class="gradient-text">Bytecode Mutation Engine</span>
+    </h1>
+
+    <p>
+      Sentinel Java Agent intercepts classloading at runtime to inspect, trace, hot-patch, and guard Java bytecode in-memory via <strong>OW2 ASM 9.7.1</strong> — without modifying a single file on disk.
+    </p>
+
+    <div class="hero-actions">
+      <a href="#simulator" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Launch Interactive Demo
+      </a>
+
+      <a href="https://github.com/jojin1709/byteguard/releases/latest" target="_blank" class="btn btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download v1.0.0 JAR
+      </a>
+
+      <button class="btn btn-outline" data-copy="java -javaagent:target/sentinel-agent.jar -jar target/sentinel-agent.jar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Copy Quickstart
+      </button>
+    </div>
+
+    <!-- Live Interactive CLI Terminal -->
+    <div class="hero-terminal">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <span class="dot-red"></span>
+          <span class="dot-yellow"></span>
+          <span class="dot-green"></span>
+        </div>
+        <span class="terminal-title">bash — sentinel-agent-live</span>
+        <button class="terminal-copy-btn" data-copy="java -javaagent:target/sentinel-agent.jar=mode=TRACE -jar target/sentinel-agent.jar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          copy
+        </button>
+      </div>
+      <div class="terminal-body">
+        <div class="term-line">
+          <span class="term-prompt">jojin@workstation:~$</span>
+          <span class="term-cmd">java -javaagent:target/sentinel-agent.jar=mode=TRACE -jar target/sentinel-agent.jar</span>
+        </div>
+        <div class="term-line term-out">[Sentinel] ─────────────────────────────────────────────</div>
+        <div class="term-line term-accent">[Sentinel] Sentinel Java Agent v1.0.0 — by JOJIN JOHN</div>
+        <div class="term-line term-out">[Sentinel] AgentConfig{targets=[demo/target/TargetService], method='message', mode=TRACE}</div>
+        <div class="term-line term-success">[Sentinel] Transformed: demo.target.TargetService [mode=TRACE]</div>
+        <div class="term-line term-cmd">[Sentinel] ENTER message()</div>
+        <div class="term-line term-cmd">[Sentinel] EXIT  message() — returned: Original message — took 1ms</div>
+        <div class="term-line term-success">[Sentinel] ✓ Execution clean. Original binary on disk: 100% untouched.</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats Ribbon -->
+  <div class="stats-ribbon">
+    <div class="stat-item">
+      <div class="stat-value">Java 17+</div>
+      <div class="stat-label">Modern JVM Target</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">ASM 9.7.1</div>
+      <div class="stat-label">Tree &amp; Visitor Engine</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">4 Modes</div>
+      <div class="stat-label">Replace, Trace, Count, Null</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">24 Tests</div>
+      <div class="stat-label">100% Passing Suite</div>
+    </div>
+  </div>
+
+  <!-- What Is This Project Section -->
+  <section class="section" id="about">
+    <div class="section-header">
+      <span class="section-tag">Core Concept</span>
+      <h2>What is Sentinel Java Agent?</h2>
+      <p>
+        An enterprise-grade runtime instrumentation framework designed for security researchers, APM developers, and performance engineers.
+      </p>
+    </div>
+
+    <div class="cards-grid">
+      <div class="feature-card">
+        <div class="card-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          </svg>
+        </div>
+        <h3>Zero Disk Modifications</h3>
+        <p>
+          Operates strictly in JVM memory during classloading. Original <code>.class</code> or <code>.jar</code> files on disk remain completely unmodified and verified.
+        </p>
+        <div class="card-tags">
+          <span class="tag">In-Memory</span>
+          <span class="tag">Non-Destructive</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="card-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <h3>APM Tracing &amp; Diagnostics</h3>
+        <p>
+          Microsecond-level performance profiling injected directly into target method bodies with zero overhead when idle and automated stack-frame recomputation.
+        </p>
+        <div class="card-tags">
+          <span class="tag">Timing Probes</span>
+          <span class="tag">Return Capture</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="card-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h3>Dynamic Attach API</h3>
+        <p>
+          Need to monitor or hot-patch a production service already running? Attach dynamically via PID using <code>sentinel.AttachTool</code> without any restart.
+        </p>
+        <div class="card-tags">
+          <span class="tag">agentmain</span>
+          <span class="tag">No Downtime</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Live Simulator Section -->
+  <section class="section" id="simulator">
+    <div class="section-header">
+      <span class="section-tag">Interactive Demo</span>
+      <h2>Live Bytecode Playground</h2>
+      <p>
+        Select a transformation mode below to inspect real-time Java bytecode mutation and simulate the JVM runtime injection.
+      </p>
+    </div>
+
+    <div class="playground-container">
+      <div class="playground-controls">
+        <div class="control-group">
+          <label>TRANSFORM MODE:</label>
+          <div class="mode-pills">
+            <button class="mode-pill active" data-mode="REPLACE">REPLACE</button>
+            <button class="mode-pill" data-mode="TRACE">TRACE</button>
+            <button class="mode-pill" data-mode="COUNT">COUNT</button>
+            <button class="mode-pill" data-mode="NULL_CHECK">NULL_CHECK</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>TARGET:</label>
+          <input type="text" class="pg-input" value="demo/target/TargetService" readonly>
+        </div>
+
+        <button class="btn btn-primary" id="runSimBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Execute Simulation
+        </button>
+      </div>
+
+      <div class="playground-split">
+        <div class="pg-panel">
+          <div class="pg-panel-header">
+            <span>ORIGINAL SOURCE</span>
+            <span>TargetService.java</span>
+          </div>
+          <div class="pg-code-editor" id="pgOrigCode"></div>
+        </div>
+
+        <div class="pg-panel">
+          <div class="pg-panel-header">
+            <span>MUTATED BYTECODE (IN-MEMORY)</span>
+            <span id="pgModeBadge">LDC + ARETURN Tree Injection</span>
+          </div>
+          <div class="pg-code-editor" id="pgTransCode"></div>
+        </div>
+      </div>
+
+      <!-- Simulation Execution Terminal -->
+      <div class="playground-footer">
+        <div class="pg-status" id="pgStatus">
+          <span>● Ready to simulate JVM classloading</span>
+        </div>
+        <div style="width: 100%; margin-top: 0.8rem;">
+          <div class="hero-terminal" style="max-width: 100%; border-radius: var(--radius-sm);">
+            <div class="terminal-body" id="simTermBody" style="min-height: 110px; max-height: 180px; overflow-y: auto;">
+              <div class="term-line term-out">// Click "Execute Simulation" above to run in-memory bytecode instrumentation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 Transformation Engines Section -->
+  <section class="section" id="modes">
+    <div class="section-header">
+      <span class="section-tag">Transformation Engines</span>
+      <h2>Four Architectural Engines</h2>
+      <p>
+        Flexible ASM pipelines designed for specific observability, instrumentation, and testing tasks.
+      </p>
+    </div>
+
+    <div class="cards-grid">
+      <div class="feature-card">
+        <h3>1. REPLACE Engine</h3>
+        <p>
+          Powered by ASM <strong>Tree API</strong> (<code>ClassNode</code> &amp; <code>MethodNode</code>). Locates matching target signatures, flushes the existing instruction list, and injects constant opcodes.
+        </p>
+        <div class="card-tags">
+          <span class="tag">LdcInsnNode</span>
+          <span class="tag">InsnList</span>
+          <span class="tag">Opcodes.ARETURN</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <h3>2. TRACE Engine</h3>
+        <p>
+          Utilizes <code>AdviceAdapter</code> to hook method boundaries. Records start time via <code>System.nanoTime()</code> at entry, logs elapsed milliseconds, and duplicates reference returns for inspection.
+        </p>
+        <div class="card-tags">
+          <span class="tag">onMethodEnter</span>
+          <span class="tag">onMethodExit</span>
+          <span class="tag">DUP return</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <h3>3. COUNT Engine</h3>
+        <p>
+          High-performance concurrency tracking. Injects static hooks calling <code>AgentStats.recordInvocation()</code> at method headers, providing instantaneous call counts across threads.
+        </p>
+        <div class="card-tags">
+          <span class="tag">AtomicLong</span>
+          <span class="tag">Thread-Safe</span>
+          <span class="tag">Telemetry</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <h3>4. NULL_CHECK Engine</h3>
+        <p>
+          Defensive bytecode auditing. Injects <code>DUP</code> and <code>IFNONNULL</code> checks before <code>ARETURN</code> instructions to immediately log stderr warnings whenever a method yields null.
+        </p>
+        <div class="card-tags">
+          <span class="tag">IFNONNULL</span>
+          <span class="tag">Defensive Guard</span>
+          <span class="tag">NPE Prevention</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Pipeline Flow -->
+  <section class="section" id="architecture">
+    <div class="section-header">
+      <span class="section-tag">Under The Hood</span>
+      <h2>The Bytecode Transformation Pipeline</h2>
+      <p>
+        Click any stage in the pipeline to reveal internal ASM mechanics and execution guarantees.
+      </p>
+    </div>
+
+    <div class="pipeline-flow">
+      <div class="pipeline-step active">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h4>JVM Boot &amp; Premain Registration</h4>
+          <p>The JVM starts with <code>-javaagent:sentinel-agent.jar</code>. <code>Loader.premain()</code> parses configuration arguments or <code>.properties</code> files and registers with <code>Instrumentation.addTransformer(loader, true)</code>.</p>
+          <div class="step-code-snippet">
+            instrumentation.addTransformer(new Loader(config), true);
+          </div>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h4>Classloading Interception &amp; Wildcard Gating</h4>
+          <p>Every class byte stream is passed through <code>Loader.transform()</code>. <code>PatternMatcher</code> tests the internal name using glob wildcards (<code>demo/target/*</code> or <code>com/example/**</code>). Unmatched classes immediately return <code>null</code>.</p>
+          <div class="step-code-snippet">
+            if (!config.matches(className)) return null; // zero overhead pass-through
+          </div>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h4>ASM Tree / Visitor Mutation</h4>
+          <p>Bytecode is parsed using <code>ClassReader(SKIP_FRAMES)</code>. Depending on the configured mode, instructions are injected into targeted methods while preserving all other members intact.</p>
+          <div class="step-code-snippet">
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+          </div>
+        </div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="step-num">04</div>
+        <div class="step-content">
+          <h4>Automatic Stack-Map Frame Recomputation</h4>
+          <p>Java 17 requires strict StackMapTable attributes. <code>ClassWriter.COMPUTE_FRAMES</code> computes stack map frames and local variable tables automatically, guaranteeing valid bytecode verification.</p>
+          <div class="step-code-snippet">
+            return writer.toByteArray(); // Bytecode verified by JVM verifier
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table Section -->
+  <section class="section" id="comparison">
+    <div class="section-header">
+      <span class="section-tag">Evaluation</span>
+      <h2>Architecture Comparison</h2>
+      <p>
+        How Sentinel's in-memory instrumentation compares to standard Java metaprogramming alternatives.
+      </p>
+    </div>
+
+    <div class="table-container">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Technique</th>
+            <th>Source Code Access</th>
+            <th>Compile-Time Required</th>
+            <th>Modifies Disk JARs</th>
+            <th>Dynamic Attach (PID)</th>
+            <th>Performance Overhead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Sentinel Agent (ByteGuard)</strong></td>
+            <td class="badge-green">NO (Pure Bytecode)</td>
+            <td class="badge-green">NO</td>
+            <td class="badge-green">NO (Memory Only)</td>
+            <td class="badge-green">YES (JDK Attach)</td>
+            <td class="badge-green">Near-Zero</td>
+          </tr>
+          <tr>
+            <td>Source Code Modification</td>
+            <td class="badge-red">REQUIRED</td>
+            <td class="badge-red">YES</td>
+            <td class="badge-red">YES (Permanent)</td>
+            <td class="badge-red">NO</td>
+            <td>Zero</td>
+          </tr>
+          <tr>
+            <td>Java Dynamic Proxies</td>
+            <td>Interfaces Only</td>
+            <td>NO</td>
+            <td class="badge-green">NO</td>
+            <td class="badge-red">NO</td>
+            <td>Moderate (Reflection)</td>
+          </tr>
+          <tr>
+            <td>AspectJ Weaving</td>
+            <td>Optional</td>
+            <td class="badge-red">YES (ajc weaver)</td>
+            <td class="badge-red">YES (Pre-weaved)</td>
+            <td class="badge-red">NO</td>
+            <td>Low-Moderate</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="nav-brand" style="justify-content: center;">
+        <span class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </span>
+        <span class="brand-title">BYTEGUARD // SENTINEL JAVA AGENT</span>
+      </div>
+
+      <div class="footer-author">
+        Architected &amp; Developed by <span class="author-name">JOJIN JOHN</span>
+      </div>
+
+      <ul class="footer-links">
+        <li><a href="https://github.com/jojin1709/byteguard" target="_blank">GitHub Repository</a></li>
+        <li><a href="https://github.com/jojin1709/byteguard/releases" target="_blank">Releases &amp; Downloads</a></li>
+        <li><a href="https://github.com/jojin1709/byteguard/blob/main/docs/architecture.md" target="_blank">Architecture Docs</a></li>
+        <li><a href="https://github.com/jojin1709/byteguard/blob/main/docs/usage.md" target="_blank">Usage Guide</a></li>
+        <li><a href="https://github.com/jojin1709/byteguard/blob/main/LICENSE" target="_blank">Proprietary License</a></li>
+      </ul>
+
+      <div class="footer-copyright">
+        &copy; 2026 JOJIN JOHN. All Rights Reserved. Proprietary Research License.
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

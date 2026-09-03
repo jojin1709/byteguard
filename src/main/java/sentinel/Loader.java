@@ -23,13 +23,14 @@ import org.objectweb.asm.tree.MethodNode;
  * Implements {@link ClassFileTransformer} to dynamically inspect and transform target
  * application bytecode at class-load time via the OW2 ASM 9.7.1 Tree API.
  * <p>
- * Supports three transformation modes (see {@link TransformMode}):
+ * Supports four transformation modes (see {@link TransformMode}):
  * <ul>
- *   <li>{@code REPLACE} — replaces the return value with a constant string</li>
- *   <li>{@code TRACE}   — injects entry/exit timing probes</li>
- *   <li>{@code COUNT}   — injects an atomic invocation counter</li>
+ *   <li>{@code REPLACE}    — replaces the return value with a constant string</li>
+ *   <li>{@code TRACE}      — injects entry/exit timing probes and logs return values</li>
+ *   <li>{@code COUNT}      — injects an atomic invocation counter</li>
+ *   <li>{@code NULL_CHECK} — injects a post-return null guard with stderr warning</li>
  * </ul>
- * Configuration is supplied via {@code -javaagent} arguments (see {@link AgentConfig}).
+ * Multiple target classes and glob wildcard patterns are supported via {@link AgentConfig}.
  *
  * @author JOJIN JOHN
  */
@@ -74,32 +75,33 @@ public final class Loader implements ClassFileTransformer {
 
         AgentStats.recordScan();
 
-        // 2. Strict scope gating — only process the configured target class
-        if (!config.getTargetClass().equals(className)) {
+        // 2. Multi-target scope gating with wildcard support
+        if (!config.matches(className)) {
             return null;
         }
 
         if (config.isVerbose()) {
-            System.out.println("[Sentinel] Inspecting: " + className.replace('/', '.'));
+            AgentLogger.info("Inspecting: " + className.replace('/', '.'));
         }
 
         try {
             byte[] result = switch (config.getMode()) {
-                case REPLACE -> applyReplace(classfileBuffer);
-                case TRACE   -> applyTrace(classfileBuffer);
-                case COUNT   -> applyCount(classfileBuffer);
+                case REPLACE    -> applyReplace(classfileBuffer);
+                case TRACE      -> applyTrace(classfileBuffer);
+                case COUNT      -> applyCount(classfileBuffer);
+                case NULL_CHECK -> applyNullCheck(classfileBuffer);
             };
 
             if (result != null) {
                 AgentStats.recordTransform();
-                System.out.println("[Sentinel] Transformed: " + className.replace('/', '.')
+                AgentLogger.info("Transformed: " + className.replace('/', '.')
                         + " [mode=" + config.getMode() + "]");
             }
             return result;
 
         } catch (Throwable t) {
             AgentStats.recordError();
-            System.err.println("[Sentinel] Error transforming " + className + ": " + t.getMessage());
+            AgentLogger.error("Error transforming " + className + ": " + t.getMessage());
             t.printStackTrace(System.err);
             return null;
         }
@@ -111,7 +113,7 @@ public final class Loader implements ClassFileTransformer {
      * Replaces the return value of the target method with a constant {@code "Transformed message"}.
      *
      * @param classfileBuffer original bytecode
-     * @return transformed bytecode, or {@code null} if no change
+     * @return transformed bytecode, or {@code null} if no change made
      */
     private byte[] applyReplace(byte[] classfileBuffer) {
         ClassReader reader = new ClassReader(classfileBuffer);
@@ -126,7 +128,7 @@ public final class Loader implements ClassFileTransformer {
 
                 if (isAlreadyReplaced(method)) {
                     if (config.isVerbose()) {
-                        System.out.println("[Sentinel] Already replaced; skipping.");
+                        AgentLogger.info("Already replaced; skipping.");
                     }
                     return null;
                 }
@@ -162,10 +164,10 @@ public final class Loader implements ClassFileTransformer {
     // ─── TRACE mode ──────────────────────────────────────────────────────────
 
     /**
-     * Injects entry and exit timing probes around the target method using {@code System.nanoTime()}.
+     * Injects entry/exit timing probes and return value logging around the target method.
      *
      * @param classfileBuffer original bytecode
-     * @return transformed bytecode, or {@code null} if no change
+     * @return transformed bytecode
      */
     private byte[] applyTrace(byte[] classfileBuffer) {
         ClassReader reader = new ClassReader(classfileBuffer);
@@ -187,7 +189,7 @@ public final class Loader implements ClassFileTransformer {
         return writer.toByteArray();
     }
 
-    /** ASM {@link AdviceAdapter} that injects entry/exit timing probes. */
+    /** Injects entry/exit timing probes and captures the return value for reference types. */
     private static final class TraceMethodAdapter extends AdviceAdapter {
 
         private final String methodName;
@@ -205,7 +207,7 @@ public final class Loader implements ClassFileTransformer {
             startTimeVar = newLocal(Type.LONG_TYPE);
             mv.visitVarInsn(Opcodes.LSTORE, startTimeVar);
 
-            // System.out.println("[Sentinel] ENTER " + methodName);
+            // System.out.println("[Sentinel] ENTER methodName()");
             mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
             mv.visitLdcInsn("[Sentinel] ENTER " + methodName + "()");
             mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/io/PrintStream", "println",
@@ -215,27 +217,50 @@ public final class Loader implements ClassFileTransformer {
         @Override
         protected void onMethodExit(int opcode) {
             if (opcode == Opcodes.ATHROW) {
-                return; // don't probe exceptional exits
+                return;
             }
-            // long elapsed = System.nanoTime() - startTime;
+
+            // Capture return value for reference-returning methods (Feature 6)
+            int retVar = -1;
+            if (opcode == Opcodes.ARETURN) {
+                // Stack: [returnValue] — DUP it so we can log and still return
+                mv.visitInsn(Opcodes.DUP);
+                retVar = newLocal(Type.getType(Object.class));
+                mv.visitVarInsn(Opcodes.ASTORE, retVar);
+            }
+
+            // Calculate elapsed ms: (System.nanoTime() - startTime) / 1_000_000
             mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/System", "nanoTime", "()J", false);
             mv.visitVarInsn(Opcodes.LLOAD, startTimeVar);
             mv.visitInsn(Opcodes.LSUB);
-
-            // convert ns -> ms: elapsed / 1_000_000
             mv.visitLdcInsn(1_000_000L);
             mv.visitInsn(Opcodes.LDIV);
-
-            // store ms result
             int msVar = newLocal(Type.LONG_TYPE);
             mv.visitVarInsn(Opcodes.LSTORE, msVar);
 
-            // System.out.println("[Sentinel] EXIT methodName() — took " + ms + "ms");
+            // Build and print exit message
             mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
             mv.visitTypeInsn(Opcodes.NEW, "java/lang/StringBuilder");
             mv.visitInsn(Opcodes.DUP);
             mv.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "()V", false);
-            mv.visitLdcInsn("[Sentinel] EXIT  " + methodName + "() — took ");
+            mv.visitLdcInsn("[Sentinel] EXIT  " + methodName + "()");
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                    "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+
+            if (retVar >= 0) {
+                // Append " — returned: <value>"
+                mv.visitLdcInsn(" — returned: ");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                        "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+                mv.visitVarInsn(Opcodes.ALOAD, retVar);
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/String", "valueOf",
+                        "(Ljava/lang/Object;)Ljava/lang/String;", false);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                        "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+            }
+
+            // Append " — took Xms"
+            mv.visitLdcInsn(" — took ");
             mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
                     "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
             mv.visitVarInsn(Opcodes.LLOAD, msVar);
@@ -254,11 +279,10 @@ public final class Loader implements ClassFileTransformer {
     // ─── COUNT mode ──────────────────────────────────────────────────────────
 
     /**
-     * Injects an {@link AgentStats#recordInvocation()} call at the entry of the target method,
-     * then prints the running invocation count.
+     * Injects an {@link AgentStats#recordInvocation()} call at the entry of the target method.
      *
      * @param classfileBuffer original bytecode
-     * @return transformed bytecode, or {@code null} if no change
+     * @return transformed bytecode
      */
     private byte[] applyCount(byte[] classfileBuffer) {
         ClassReader reader = new ClassReader(classfileBuffer);
@@ -280,7 +304,7 @@ public final class Loader implements ClassFileTransformer {
         return writer.toByteArray();
     }
 
-    /** ASM {@link AdviceAdapter} that increments and prints an invocation counter. */
+    /** Injects an atomic invocation counter at method entry. */
     private static final class CountMethodAdapter extends AdviceAdapter {
 
         private final String methodName;
@@ -292,13 +316,11 @@ public final class Loader implements ClassFileTransformer {
 
         @Override
         protected void onMethodEnter() {
-            // long count = AgentStats.recordInvocation();
             mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                     "sentinel/AgentStats", "recordInvocation", "()J", false);
             int countVar = newLocal(Type.LONG_TYPE);
             mv.visitVarInsn(Opcodes.LSTORE, countVar);
 
-            // System.out.println("[Sentinel] " + methodName + "() call #" + count);
             mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
             mv.visitTypeInsn(Opcodes.NEW, "java/lang/StringBuilder");
             mv.visitInsn(Opcodes.DUP);
@@ -316,8 +338,74 @@ public final class Loader implements ClassFileTransformer {
         }
 
         @Override
+        protected void onMethodExit(int opcode) {}
+    }
+
+    // ─── NULL_CHECK mode ─────────────────────────────────────────────────────
+
+    /**
+     * Injects a post-return null guard: logs a warning to stderr if the target method returns null.
+     *
+     * @param classfileBuffer original bytecode
+     * @return transformed bytecode
+     */
+    private byte[] applyNullCheck(byte[] classfileBuffer) {
+        ClassReader reader = new ClassReader(classfileBuffer);
+        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_FRAMES);
+        String targetMethod = config.getTargetMethod();
+
+        reader.accept(new org.objectweb.asm.ClassVisitor(Opcodes.ASM9, writer) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                             String signature, String[] exceptions) {
+                MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                if (targetMethod.equals(name)) {
+                    return new NullCheckMethodAdapter(Opcodes.ASM9, mv, access, name, descriptor);
+                }
+                return mv;
+            }
+        }, ClassReader.SKIP_FRAMES);
+
+        return writer.toByteArray();
+    }
+
+    /** Injects a null-return guard at every ARETURN in the target method. */
+    private static final class NullCheckMethodAdapter extends AdviceAdapter {
+
+        private final String methodName;
+
+        NullCheckMethodAdapter(int api, MethodVisitor mv, int access, String name, String desc) {
+            super(api, mv, access, name, desc);
+            this.methodName = name;
+        }
+
+        @Override
+        protected void onMethodEnter() {
+            mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+            mv.visitLdcInsn("[Sentinel] NULL_CHECK active on " + methodName + "()");
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/io/PrintStream", "println",
+                    "(Ljava/lang/String;)V", false);
+        }
+
+        @Override
         protected void onMethodExit(int opcode) {
-            // no-op for COUNT mode
+            if (opcode != Opcodes.ARETURN) {
+                return; // Only check reference-returning methods
+            }
+
+            // Stack: [returnValue]
+            mv.visitInsn(Opcodes.DUP);
+            // Stack: [returnValue, returnValue]
+
+            Label notNull = new Label();
+            mv.visitJumpInsn(Opcodes.IFNONNULL, notNull);
+            // returnValue IS null — log warning to stderr
+            mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+            mv.visitLdcInsn("[Sentinel] NULL_CHECK WARNING: " + methodName + "() returned null!");
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/io/PrintStream", "println",
+                    "(Ljava/lang/String;)V", false);
+            mv.visitLabel(notNull);
+            // Stack: [returnValue] — original return value preserved
         }
     }
 
@@ -331,17 +419,19 @@ public final class Loader implements ClassFileTransformer {
      */
     public static void premain(String agentArgs, Instrumentation instrumentation) {
         AgentConfig config = AgentConfig.parse(agentArgs);
-        System.out.println("[Sentinel] ─────────────────────────────────────────────");
-        System.out.println("[Sentinel] Sentinel Java Agent v1.0.0 — by JOJIN JOHN");
-        System.out.println("[Sentinel] " + config);
-        System.out.println("[Sentinel] ─────────────────────────────────────────────");
+        AgentLogger.init(config.getLogFile());
+
+        AgentLogger.info("─────────────────────────────────────────────");
+        AgentLogger.info("Sentinel Java Agent v1.0.0 — by JOJIN JOHN");
+        AgentLogger.info(config.toString());
+        AgentLogger.info("─────────────────────────────────────────────");
 
         instrumentation.addTransformer(new Loader(config), true);
 
-        // Print stats summary on JVM shutdown
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println();
             AgentStats.printSummary();
+            AgentLogger.close();
         }, "sentinel-stats-hook"));
     }
 

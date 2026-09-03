@@ -15,8 +15,8 @@
 [![JUnit](https://img.shields.io/badge/JUnit-5.11-25A162?style=for-the-badge&logo=junit5&logoColor=white)](https://junit.org/junit5/)
 [![Developer](https://img.shields.io/badge/Developer-JOJIN%20JOHN-8A2BE2?style=for-the-badge)]()
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](./LICENSE)
-[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](./.github/workflows/maven.yml)
-[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)]()
+[![CI](https://github.com/jojin1709/byteguard/actions/workflows/maven.yml/badge.svg)](https://github.com/jojin1709/byteguard/actions/workflows/maven.yml)
+[![Release](https://img.shields.io/github/v/release/jojin1709/byteguard?style=for-the-badge&color=brightgreen&label=Release)](https://github.com/jojin1709/byteguard/releases/latest)
 
 <br/>
 
